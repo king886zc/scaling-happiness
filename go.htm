@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>闲鱼</title>
+    <style>
+        /* 基础样式和全局重置 */
+        :root {
+            --background-color: #FFFFFF;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            overflow: hidden;
+            position: fixed;
+        }
+
+        /* --- Layering & Transitions --- */
+
+        /* 主加载容器 */
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            height: 100%;
+            padding-top: 25vh;
+            box-sizing: border-box;
+            z-index: 1000; /* Ensure loader is on top */
+            transition: opacity 0.4s ease-in-out; /* Smooth fade out */
+            animation: fadeIn 0.5s ease-in-out;
+            background-color: var(--background-color); /* Ensure it has a solid background */
+        }
+
+        /* iframe 样式 */
+        .content-iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 999; /* Below the loader */
+        }
+        
+        /* --- Visual Styles (the loader itself) --- */
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .profile-container {
+            position: relative;
+            width: 75px;
+            height: 75px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .profile-image {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .spinner-track {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #f0f0f0;
+            border-radius: 50%;
+            box-sizing: border-box;
+        }
+
+        .spinner-rotor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            animation: rotate 2s linear infinite;
+        }
+
+        .spinner-dot {
+            position: absolute;
+            top: -2px;
+            left: calc(50% - 2.5px);
+            width: 4px;
+            height: 4px;
+            background-color: #2ECC71;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(46, 204, 113, 0.7);
+        }
+
+        .loading-text {
+            margin-top: 25px;
+            font-size: 15px;
+            color: rgb(18, 18, 18);
+            letter-spacing: 1px;
+        }
+
+        /* --- Animations --- */
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loading-container" id="loadingContainer">
+        <div class="content-wrapper">
+            <div class="profile-container">
+                <img src="http://wx.qlogo.cn/mmhead/Q3auHgzwzM4ib22QDZu1IrNGHn5jNnkGxEkrVB9iaexovTiaJQX9vPhLg/132" alt="用户头像" class="profile-image">
+                <div class="spinner-track"></div>
+                <div class="spinner-rotor">
+                    <div class="spinner-dot"></div>
+                </div>
+            </div>
+            <p class="loading-text">闲鱼闲置交易二手买卖估价回收</p>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * @file 优化的页面加载与嵌入脚本
+         * @description 无限重试 + 指数退避策略 + 平滑过渡
+         */
+
+        // --- 配置 ---
+        const CONFIG = {
+            MIN_LOADING_DURATION: 800,
+            TRANSITION_DELAY: 300,
+            INITIAL_RETRY_DELAY: 1000,
+            MAX_RETRY_DELAY: 30000,
+            IFRAME_TIMEOUT: 10000,
+            BACKOFF_MULTIPLIER: 1.5
+        };
+
+        // --- DOM 元素 ---
+        const dom = {
+            container: document.getElementById('loadingContainer')
+        };
+
+        // --- 状态变量 ---
+        const state = {
+            isIframeLoaded: false,
+            isMinDurationElapsed: false,
+            retryCount: 0,
+            currentIframe: null,
+            currentRetryDelay: CONFIG.INITIAL_RETRY_DELAY,
+            loadingTimer: null,
+            timeoutTimer: null,
+            targetUrl: null
+        };
+
+        // --- 工具函数 ---
+        function getNextRetryDelay() {
+            const delay = Math.min(
+                state.currentRetryDelay * CONFIG.BACKOFF_MULTIPLIER,
+                CONFIG.MAX_RETRY_DELAY
+            );
+            state.currentRetryDelay = delay;
+            return delay;
+        }
+
+        function clearTimers() {
+            if (state.loadingTimer) clearTimeout(state.loadingTimer);
+            if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
+        }
+
+        function tryTransition() {
+            if (state.isIframeLoaded && state.isMinDurationElapsed) {
+                clearTimers();
+                setTimeout(() => {
+                    dom.container.style.opacity = '0';
+                    if (state.currentIframe) {
+                        state.currentIframe.style.opacity = '1';
+                    }
+                    setTimeout(() => {
+                        dom.container.style.display = 'none';
+                    }, 400); // Wait for fade-out to finish
+                }, CONFIG.TRANSITION_DELAY);
+            }
+        }
+
+        // --- Iframe 加载逻辑 ---
+        function handleIframeError() {
+            if (state.isIframeLoaded) return;
+            
+            state.retryCount++;
+            const nextDelay = getNextRetryDelay();
+            
+            console.log(`重试 #${state.retryCount}，${Math.round(nextDelay/1000)}秒后重新加载...`);
+            
+            if (state.currentIframe) {
+                state.currentIframe.remove();
+                state.currentIframe = null;
+            }
+            
+            state.loadingTimer = setTimeout(() => {
+                createAndLoadIframe(state.targetUrl);
+            }, nextDelay);
+        }
+
+        function createAndLoadIframe(targetUrl) {
+            clearTimers();
+            if (state.currentIframe) {
+                state.currentIframe.remove();
+            }
+
+            const iframe = document.createElement('iframe');
+            iframe.className = 'content-iframe';
+            iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation');
+            iframe.setAttribute('loading', 'eager');
+            iframe.setAttribute('allow', 'geolocation; microphone; camera; payment; usb; autoplay');
+            
+            iframe.src = targetUrl;
+            document.body.appendChild(iframe);
+            state.currentIframe = iframe;
+
+            iframe.onload = () => {
+                state.isIframeLoaded = true;
+                clearTimers();
+                tryTransition();
+            };
+
+            iframe.onerror = () => {
+                handleIframeError();
+            };
+
+            state.timeoutTimer = setTimeout(() => {
+                if (!state.isIframeLoaded) {
+                    console.log('加载超时，准备重试...');
+                    handleIframeError();
+                }
+            }, CONFIG.IFRAME_TIMEOUT);
+        }
+
+        // --- 主逻辑 ---
+        function initializePage() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const encodedParam = urlParams.get('c');
+                
+                if (!encodedParam) {
+                    console.error('缺少参数 c');
+                    return;
+                }
+
+                try {
+                    state.targetUrl = atob(encodedParam);
+                } catch (e) {
+                    console.error('参数解码失败');
+                    return;
+                }
+                
+                // --- 这是修复后的代码块 ---
+                const urlPattern = /^(https?|ftp):\/\//i;
+                if (!urlPattern.test(state.targetUrl)) {
+                    console.log('URL缺少协议，自动添加 https://');
+                    state.targetUrl = 'https://' + state.targetUrl;
+                }
+                // --- 修复结束 ---
+
+            } catch (error) {
+                console.error('初始化错误:', error);
+                return;
+            }
+            
+            setTimeout(() => {
+                state.isMinDurationElapsed = true;
+                tryTransition();
+            }, CONFIG.MIN_LOADING_DURATION);
+
+            try {
+                const link = document.createElement('link');
+                link.rel = 'preconnect';
+                link.href = new URL(state.targetUrl).origin;
+                document.head.appendChild(link);
+            } catch (e) {
+                // 静默失败
+            }
+
+            createAndLoadIframe(state.targetUrl);
+        }
+
+        // --- 脚本入口 ---
+        window.addEventListener('load', initializePage);
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !state.isIframeLoaded && state.targetUrl) {
+                console.log('页面重新可见，尝试加载...');
+                createAndLoadIframe(state.targetUrl);
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (dom.container.style.display !== 'none') {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+
+</body>
+</html>
