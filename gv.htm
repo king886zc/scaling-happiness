@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>闲鱼</title>
+    <style>
+        /* 基础样式和全局重置 */
+        :root {
+            --background-color: #FFFFFF;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--background-color);
+            overflow: hidden;
+            position: fixed;
+        }
+
+        /* --- Layering & Transitions --- */
+
+        /* 主加载容器 */
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            width: 100%;
+            height: 100%;
+            padding-top: 25vh;
+            box-sizing: border-box;
+            z-index: 1000;
+            transition: opacity 0.4s ease-in-out;
+            animation: fadeIn 0.5s ease-in-out;
+            background-color: var(--background-color);
+        }
+
+        /* 备用链接容器 */
+        .fallback-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            z-index: 1001;
+            background-color: var(--background-color);
+            padding: 20px;
+            box-sizing: border-box;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .fallback-container.show {
+            display: flex;
+        }
+
+        .fallback-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .fallback-icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+
+        .fallback-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .fallback-desc {
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .link-box {
+            width: 100%;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        }
+
+        .link-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .link-text {
+            font-size: 13px;
+            color: #2ECC71;
+            word-break: break-all;
+            line-height: 1.4;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-copy {
+            background-color: #2ECC71;
+            color: white;
+        }
+
+        .btn-copy:active {
+            background-color: #27ae60;
+        }
+
+        .btn-copy.copied {
+            background-color: #27ae60;
+        }
+
+        .btn-open {
+            background-color: #3498DB;
+            color: white;
+        }
+
+        .btn-open:active {
+            background-color: #2980b9;
+        }
+
+        .copy-tip {
+            font-size: 12px;
+            color: #2ECC71;
+            margin-top: 10px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .copy-tip.show {
+            display: block;
+        }
+
+        /* iframe 样式 */
+        .content-iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 999;
+        }
+        
+        /* --- Visual Styles (the loader itself) --- */
+
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .profile-container {
+            position: relative;
+            width: 75px;
+            height: 75px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .profile-image {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .spinner-track {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #f0f0f0;
+            border-radius: 50%;
+            box-sizing: border-box;
+        }
+
+        .spinner-rotor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            animation: rotate 2s linear infinite;
+        }
+
+        .spinner-dot {
+            position: absolute;
+            top: -2px;
+            left: calc(50% - 2.5px);
+            width: 4px;
+            height: 4px;
+            background-color: #2ECC71;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(46, 204, 113, 0.7);
+        }
+
+        .loading-text {
+            margin-top: 25px;
+            font-size: 15px;
+            color: rgb(18, 18, 18);
+            letter-spacing: 1px;
+        }
+
+        /* --- Animations --- */
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loading-container" id="loadingContainer">
+        <div class="content-wrapper">
+            <div class="profile-container">
+                <img src="http://wx.qlogo.cn/mmhead/Q3auHgzwzM4ib22QDZu1IrNGHn5jNnkGxEkrVB9iaexovTiaJQX9vPhLg/132" alt="用户头像" class="profile-image">
+                <div class="spinner-track"></div>
+                <div class="spinner-rotor">
+                    <div class="spinner-dot"></div>
+                </div>
+            </div>
+            <p class="loading-text">闲鱼闲置交易二手买卖估价回收</p>
+        </div>
+    </div>
+
+    <div class="fallback-container" id="fallbackContainer">
+        <div class="fallback-content">
+            <svg class="fallback-icon" viewBox="0 0 24 24" fill="none" stroke="#2ECC71" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                <polyline points="13 2 13 9 20 9"></polyline>
+                <path d="M9 15h6"></path>
+                <path d="M9 11h6"></path>
+            </svg>
+            <h2 class="fallback-title">加载超时</h2>
+            <p class="fallback-desc">页面加载较慢，请复制下方链接到浏览器中打开</p>
+            
+            <div class="link-box">
+                <span class="link-label">商品链接：</span>
+                <div class="link-text" id="linkText"></div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-copy" id="copyBtn">复制链接</button>
+                <a class="btn btn-open" id="openBtn" target="_blank">浏览器打开</a>
+            </div>
+
+            <div class="copy-tip" id="copyTip">✓ 已复制到剪贴板</div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * @file 优化的页面加载与嵌入脚本
+         * @description 无限重试 + 指数退避策略 + 平滑过渡 + 超时备用方案
+         */
+
+        // --- 配置 ---
+        const CONFIG = {
+            MIN_LOADING_DURATION: 800,
+            TRANSITION_DELAY: 300,
+            INITIAL_RETRY_DELAY: 1000,
+            MAX_RETRY_DELAY: 30000,
+            IFRAME_TIMEOUT: 10000,
+            BACKOFF_MULTIPLIER: 1.5,
+            FALLBACK_TIMEOUT: 15000  // 15秒后显示备用方案
+        };
+
+        // --- DOM 元素 ---
+        const dom = {
+            container: document.getElementById('loadingContainer'),
+            fallbackContainer: document.getElementById('fallbackContainer'),
+            linkText: document.getElementById('linkText'),
+            copyBtn: document.getElementById('copyBtn'),
+            openBtn: document.getElementById('openBtn'),
+            copyTip: document.getElementById('copyTip')
+        };
+
+        // --- 状态变量 ---
+        const state = {
+            isIframeLoaded: false,
+            isMinDurationElapsed: false,
+            retryCount: 0,
+            currentIframe: null,
+            currentRetryDelay: CONFIG.INITIAL_RETRY_DELAY,
+            loadingTimer: null,
+            timeoutTimer: null,
+            fallbackTimer: null,
+            targetUrl: null,
+            showedFallback: false
+        };
+
+        // --- 工具函数 ---
+        function getNextRetryDelay() {
+            const delay = Math.min(
+                state.currentRetryDelay * CONFIG.BACKOFF_MULTIPLIER,
+                CONFIG.MAX_RETRY_DELAY
+            );
+            state.currentRetryDelay = delay;
+            return delay;
+        }
+
+        function clearTimers() {
+            if (state.loadingTimer) clearTimeout(state.loadingTimer);
+            if (state.timeoutTimer) clearTimeout(state.timeoutTimer);
+            if (state.fallbackTimer) clearTimeout(state.fallbackTimer);
+        }
+
+        function showFallbackUI() {
+            if (state.showedFallback) return;
+            state.showedFallback = true;
+            clearTimers();
+            
+            console.log('显示备用链接方案');
+            dom.linkText.textContent = state.targetUrl;
+            dom.openBtn.href = state.targetUrl;
+            dom.container.style.opacity = '0';
+            
+            setTimeout(() => {
+                dom.container.style.display = 'none';
+                dom.fallbackContainer.classList.add('show');
+            }, 300);
+        }
+
+        function tryTransition() {
+            if (state.isIframeLoaded && state.isMinDurationElapsed) {
+                clearTimers();
+                setTimeout(() => {
+                    dom.container.style.opacity = '0';
+                    if (state.currentIframe) {
+                        state.currentIframe.style.opacity = '1';
+                    }
+                    setTimeout(() => {
+                        dom.container.style.display = 'none';
+                    }, 400);
+                }, CONFIG.TRANSITION_DELAY);
+            }
+        }
+
+        // --- Iframe 加载逻辑 ---
+        function handleIframeError() {
+            if (state.isIframeLoaded) return;
+            
+            state.retryCount++;
+            const nextDelay = getNextRetryDelay();
+            
+            console.log(`重试 #${state.retryCount}，${Math.round(nextDelay/1000)}秒后重新加载...`);
+            
+            if (state.currentIframe) {
+                state.currentIframe.remove();
+                state.currentIframe = null;
+            }
+            
+            state.loadingTimer = setTimeout(() => {
+                createAndLoadIframe(state.targetUrl);
+            }, nextDelay);
+        }
+
+        function createAndLoadIframe(targetUrl) {
+            clearTimers();
+            if (state.currentIframe) {
+                state.currentIframe.remove();
+            }
+
+            const iframe = document.createElement('iframe');
+            iframe.className = 'content-iframe';
+            iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation');
+            iframe.setAttribute('loading', 'eager');
+            iframe.setAttribute('allow', 'geolocation; microphone; camera; payment; usb; autoplay');
+            
+            iframe.src = targetUrl;
+            document.body.appendChild(iframe);
+            state.currentIframe = iframe;
+
+            iframe.onload = () => {
+                state.isIframeLoaded = true;
+                clearTimers();
+                tryTransition();
+            };
+
+            iframe.onerror = () => {
+                handleIframeError();
+            };
+
+            state.timeoutTimer = setTimeout(() => {
+                if (!state.isIframeLoaded) {
+                    console.log('加载超时，准备重试...');
+                    handleIframeError();
+                }
+            }, CONFIG.IFRAME_TIMEOUT);
+        }
+
+        // --- 主逻辑 ---
+        function initializePage() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const encodedParam = urlParams.get('c');
+                
+                if (!encodedParam) {
+                    console.error('缺少参数 c');
+                    return;
+                }
+
+                try {
+                    state.targetUrl = atob(encodedParam);
+                } catch (e) {
+                    console.error('参数解码失败');
+                    return;
+                }
+                
+                const urlPattern = /^(https?|ftp):\/\//i;
+                if (!urlPattern.test(state.targetUrl)) {
+                    console.log('URL缺少协议，自动添加 https://');
+                    state.targetUrl = 'https://' + state.targetUrl;
+                }
+
+            } catch (error) {
+                console.error('初始化错误:', error);
+                return;
+            }
+            
+            setTimeout(() => {
+                state.isMinDurationElapsed = true;
+                tryTransition();
+            }, CONFIG.MIN_LOADING_DURATION);
+
+            // 设置超时备用方案
+            state.fallbackTimer = setTimeout(() => {
+                if (!state.isIframeLoaded && !state.showedFallback) {
+                    showFallbackUI();
+                }
+            }, CONFIG.FALLBACK_TIMEOUT);
+
+            try {
+                const link = document.createElement('link');
+                link.rel = 'preconnect';
+                link.href = new URL(state.targetUrl).origin;
+                document.head.appendChild(link);
+            } catch (e) {
+                // 静默失败
+            }
+
+            createAndLoadIframe(state.targetUrl);
+        }
+
+        // --- 按钮事件 ---
+        dom.copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(state.targetUrl).then(() => {
+                dom.copyBtn.classList.add('copied');
+                dom.copyBtn.textContent = '已复制';
+                dom.copyTip.classList.add('show');
+                
+                setTimeout(() => {
+                    dom.copyBtn.classList.remove('copied');
+                    dom.copyBtn.textContent = '复制链接';
+                    dom.copyTip.classList.remove('show');
+                }, 2000);
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制链接');
+            });
+        });
+
+        // --- 脚本入口 ---
+        window.addEventListener('load', initializePage);
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !state.isIframeLoaded && state.targetUrl && !state.showedFallback) {
+                console.log('页面重新可见，尝试加载...');
+                createAndLoadIframe(state.targetUrl);
+            }
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (dom.container.style.display !== 'none' || dom.fallbackContainer.style.display !== 'none') {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+
+</body>
+</html>
