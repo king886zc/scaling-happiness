@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>淘短直开 · 图片链接生成器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-0: #0c0f12;
+      --bg-1: #141a1f;
+      --ink: #e8ecef;
+      --muted: #8a959e;
+      --line: rgba(232, 236, 239, 0.1);
+      --accent: #c4a574;
+      --accent-soft: rgba(196, 165, 116, 0.16);
+      --ok: #7dba8a;
+      --err: #d87a6c;
+      --field: rgba(255, 255, 255, 0.035);
+      --glow: rgba(196, 165, 116, 0.22);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Sora", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 90% 60% at 10% -10%, rgba(196, 165, 116, 0.14), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 100% 0%, rgba(90, 120, 140, 0.12), transparent 50%),
+        linear-gradient(165deg, #0a0d10 0%, #12171c 45%, #0e1216 100%);
+      background-attachment: fixed;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .noise {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: min(640px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: clamp(3.5rem, 12vh, 6.5rem) 0 4rem;
+    }
+
+    .brand {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: clamp(2.6rem, 7vw, 3.4rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin-bottom: 0.55rem;
+      opacity: 0;
+      animation: rise 0.7s ease forwards;
+    }
+
+    .brand em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: 0.95rem;
+      font-weight: 300;
+      max-width: 28rem;
+      margin-bottom: 2.4rem;
+      opacity: 0;
+      animation: rise 0.7s ease 0.08s forwards;
+    }
+
+    .panel {
+      opacity: 0;
+      animation: rise 0.7s ease 0.16s forwards;
+    }
+
+    label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+    }
+
+    .field {
+      width: 100%;
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.92rem;
+      padding: 0.95rem 1.05rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      resize: vertical;
+      min-height: 3.2rem;
+    }
+
+    .field::placeholder {
+      color: rgba(138, 149, 158, 0.7);
+    }
+
+    .field:focus {
+      border-color: rgba(196, 165, 116, 0.55);
+      box-shadow: 0 0 0 3px var(--accent-soft), 0 0 40px var(--glow);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.1rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 999px;
+      padding: 0.85rem 1.45rem;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: transform 0.18s ease, background 0.18s, opacity 0.18s, box-shadow 0.18s;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #d4b88a, #b8935f);
+      color: #1a140c;
+      box-shadow: 0 8px 28px rgba(196, 165, 116, 0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 10px 34px rgba(196, 165, 116, 0.35);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 0.82rem 1.2rem;
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      color: var(--ink);
+      border-color: rgba(232, 236, 239, 0.22);
+    }
+
+    .status {
+      min-height: 1.4rem;
+      margin-top: 0.9rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .status.err { color: var(--err); }
+    .status.ok { color: var(--ok); }
+
+    .results {
+      margin-top: 2rem;
+      display: grid;
+      gap: 1.15rem;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .results.show {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+
+    .block {
+      border-top: 1px solid var(--line);
+      padding-top: 1.1rem;
+    }
+
+    .block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.55rem;
+    }
+
+    .block-head span {
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .copy {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+
+    .copy:hover {
+      background: var(--accent-soft);
+    }
+
+    .out {
+      font-size: 0.84rem;
+      word-break: break-all;
+      color: rgba(232, 236, 239, 0.88);
+      line-height: 1.65;
+      font-weight: 300;
+    }
+
+    .out.short {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.45rem;
+      color: var(--accent);
+      letter-spacing: 0.01em;
+    }
+
+    .preview {
+      margin-top: 0.85rem;
+      max-width: 160px;
+      max-height: 160px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      object-fit: contain;
+      background: var(--bg-1);
+      display: none;
+    }
+
+    .preview.show {
+      display: block;
+      animation: fade 0.45s ease;
+    }
+
+    .foot {
+      margin-top: 3rem;
+      font-size: 0.75rem;
+      color: rgba(138, 149, 158, 0.65);
+      opacity: 0;
+      animation: rise 0.7s ease 0.28s forwards;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    @keyframes fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .brand, .lead, .panel, .foot { animation: none; opacity: 1; }
+      .results { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <main class="wrap">
+    <h1 class="brand">淘短<em>直开</em></h1>
+    <p class="lead">输入图片链接，自动编码为淘宝直开长链，并生成 m.tb.cn 短链。</p>
+
+    <div class="panel">
+      <label for="imgUrl">图片链接</label>
+      <textarea
+        id="imgUrl"
+        class="field"
+        rows="3"
+        placeholder="https://gtms01.alicdn.com/xxxx.gif"
+        spellcheck="false"
+      ></textarea>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="genBtn">生成短链</button>
+        <button type="button" class="btn-ghost" id="clearBtn">清空</button>
+      </div>
+
+      <p class="status" id="status" aria-live="polite"></p>
+
+      <img id="preview" class="preview" alt="图片预览" />
+
+      <div class="results" id="results">
+        <div class="block">
+          <div class="block-head">
+            <span>直开长链</span>
+            <button type="button" class="copy" data-copy="longUrl">复制</button>
+          </div>
+          <p class="out" id="longUrl"></p>
+        </div>
+        <div class="block">
+          <div class="block-head">
+            <span>淘短链接</span>
+            <button type="button" class="copy" data-copy="shortUrl">复制</button>
+          </div>
+          <p class="out short" id="shortUrl"></p>
+        </div>
+      </div>
+    </div>
+
+    <p class="foot">仅供本地使用 · 短链密钥有效期至 2026-08-29</p>
+  </main>
+
+  <script>
+    // 短链接密钥（token），到期日见前缀日期
+    const TOKEN = "2026-08-29|0c7ecc:90abrIUE1cd4NjEoKkOSzBUlnr9fWxpr0HdvRkxLchkgwPZvY6oNaWFN/QdvDys";
+    const API_BASE = "https://im.alicdm.com/api.io";
+
+    const imgUrlEl = document.getElementById("imgUrl");
+    const genBtn = document.getElementById("genBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    const longUrlEl = document.getElementById("longUrl");
+    const shortUrlEl = document.getElementById("shortUrl");
+    const previewEl = document.getElementById("preview");
+
+    /** 编码时保留 !（阿里 CDN 常见），其余按 encodeURIComponent */
+    function encodeKeepBang(str) {
+      return encodeURIComponent(str).replace(/%21/g, "!");
+    }
+
+    function buildDirectUrl(imageUrl) {
+      const weburl = encodeKeepBang(imageUrl.trim());
+      const inner = `https://m.taobao.com/?weburl=${weburl}&disableNav=YES`;
+      const targetUrl = encodeKeepBang(inner);
+      return (
+        "https://market.m.taobao.com/app/starlink/wakeup-transit/pages/download" +
+        "?star_id=3113&env=miniapp&slk_force_set_request=true" +
+        `&targetUrl=${targetUrl}&app=ali`
+      );
+    }
+
+    function setStatus(msg, type = "") {
+      statusEl.textContent = msg;
+      statusEl.className = "status" + (type ? ` ${type}` : "");
+    }
+
+    function copyText(text) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    /** 规范为 https://m.tb.cn/a.xxxxx */
+    function normalizeTbShort(value) {
+      if (!value || typeof value !== "string") return null;
+      const text = value.trim().replace(/\\\//g, "/");
+      const matched = text.match(/https?:\/\/m\.tb\.cn\/a\.[A-Za-z0-9]+/i);
+      if (matched) {
+        return matched[0].replace(/^http:\/\//i, "https://");
+      }
+      const code = text.match(/\ba\.[A-Za-z0-9]+\b/);
+      if (code) return `https://m.tb.cn/${code[0]}`;
+      return null;
+    }
+
+    function fetchShortLink(longUrl) {
+      return new Promise((resolve, reject) => {
+        const cb = `tbShort_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error("请求超时，请稍后重试"));
+        }, 15000);
+
+        function cleanup() {
+          clearTimeout(timer);
+          delete window[cb];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[cb] = function (data) {
+          cleanup();
+          resolve(data);
+        };
+
+        // 与官方提交格式一致：token 原样带入，url 编码为单一参数
+        const qs =
+          `friend=tmg&apiA=tdl&apiB=get&callback=${encodeURIComponent(cb)}` +
+          `&token=${encodeURIComponent(TOKEN)}` +
+          `&mode=&url=${encodeURIComponent(longUrl)}` +
+          `&_=${Date.now()}`;
+
+        const script = document.createElement("script");
+        script.src = `${API_BASE}?${qs}`;
+        script.onerror = () => {
+          cleanup();
+          reject(new Error("接口请求失败，请检查网络或密钥"));
+        };
+        document.head.appendChild(script);
+      });
+    }
+
+    /** 从接口响应取出 m.tb.cn 短链（字段：data.url） */
+    function extractShortUrl(payload) {
+      if (!payload) return null;
+      if (payload.success === false) {
+        const err = new Error(payload.msg || "短链生成失败");
+        err.fromApi = true;
+        throw err;
+      }
+      const raw =
+        (payload.data && payload.data.url) ||
+        payload.url ||
+        (typeof payload === "string" ? payload : null);
+      return normalizeTbShort(raw) || normalizeTbShort(JSON.stringify(payload));
+    }
+
+    async function generate() {
+      const raw = imgUrlEl.value.trim();
+      if (!raw) {
+        setStatus("请先输入图片链接", "err");
+        imgUrlEl.focus();
+        return;
+      }
+      if (!/^https?:\/\//i.test(raw)) {
+        setStatus("请输入以 http(s):// 开头的有效图片链接", "err");
+        return;
+      }
+
+      const longUrl = buildDirectUrl(raw);
+      longUrlEl.textContent = longUrl;
+      shortUrlEl.textContent = "";
+      resultsEl.classList.add("show");
+
+      previewEl.classList.remove("show");
+      previewEl.onload = () => previewEl.classList.add("show");
+      previewEl.onerror = () => previewEl.classList.remove("show");
+      previewEl.src = raw;
+
+      genBtn.disabled = true;
+      setStatus("正在生成淘短链接…");
+
+      try {
+        const data = await fetchShortLink(longUrl);
+        const short = extractShortUrl(data);
+        if (!short) {
+          console.log("API response:", data);
+          setStatus("接口未返回有效的 m.tb.cn 短链", "err");
+          shortUrlEl.textContent = "—";
+          return;
+        }
+        shortUrlEl.textContent = short;
+        setStatus("生成成功 · " + short, "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "生成失败", "err");
+        shortUrlEl.textContent = "—";
+      } finally {
+        genBtn.disabled = false;
+      }
+    }
+
+    genBtn.addEventListener("click", generate);
+
+    clearBtn.addEventListener("click", () => {
+      imgUrlEl.value = "";
+      longUrlEl.textContent = "";
+      shortUrlEl.textContent = "";
+      resultsEl.classList.remove("show");
+      previewEl.classList.remove("show");
+      previewEl.removeAttribute("src");
+      setStatus("");
+      imgUrlEl.focus();
+    });
+
+    document.querySelectorAll("[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-copy");
+        const text = document.getElementById(id).textContent.trim();
+        if (!text || text === "—") return;
+        try {
+          await copyText(text);
+          const prev = btn.textContent;
+          btn.textContent = "已复制";
+          setTimeout(() => (btn.textContent = prev), 1200);
+        } catch {
+          setStatus("复制失败，请手动选择复制", "err");
+        }
+      });
+    });
+
+    imgUrlEl.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") generate();
+    });
+  </script>
+</body>
+</html>
